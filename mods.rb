@@ -1,4 +1,12 @@
 
+class Module
+  def require_instances(mods)
+    mods.each do |m|
+      raise "#{self.name} isn't an instance of #{m.name}!" unless self.include?(m)
+    end
+  end
+end
+
 module Functor
   def fmap(f)
   end
@@ -28,7 +36,7 @@ end
 
 module Applicative
   def self.included(mod)
-    raise("#{mod} didn't include Functor!") unless mod.include?(Functor)
+    mod.require_instances [Functor]
 
     mod.extend(ApplicativeClassMethod)
   end
@@ -42,28 +50,58 @@ module Applicative
   end
 end
 
-module Monad
+module Foldable
+  def fold_each(&f)
+  end
+end
+
+module Traversable
   def self.included(mod)
-    raise("#{mod} didn't include Applicative!") unless mod.include?(Applicative)
+    mod.require_instances [Functor, Foldable]
+  end
+
+  def traverse(&f)
+  end
+end
+
+module Monad
+  _fold_m = proc do |init, xs, &f|
+    acc = init
+    xs.fold_each { |x| acc = f.call(x, acc) }
+    acc
+  end
+
+  _seq_m = proc do |ms|
+    ms.traverse { |m| m.bind { |x| m.class.unit(x) } }
+  end
+
+  REG_TABLE = {:fold_m => [[Foldable], _fold_m],
+               :sequence => [[Traversable, Foldable], _seq_m]}
+
+  def self.included(mod)
+    mod.require_instances [Applicative]
 
     mod.extend(MonadClassMethod)
+
+    REG_TABLE.each_pair do |k, v|
+      if v[0].all? { |x| mod.include?(x) }
+        mod.class.send(:define_method, k, &v[1])
+      end
+    end
   end
 
   module MonadClassMethod
     def unit(x)
       pure(x)
     end
+  end
 
-    def fold_m(init, xs, &f)
-      raise("#{self.name} isn't foldable!") unless self.include?(Enumerable)
-      acc = init
-      xs.each { |x| acc = f.call(x, acc) }
-      acc
-    end
+  def join
+    self.bind { |t| t }
   end
 
   def bind_(&f)
-    f.call
+    self.bind { |_| f.call }
   end
 
   def bind(&f)

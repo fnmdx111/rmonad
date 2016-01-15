@@ -115,6 +115,45 @@ class Reader
   end
 end
 
+class State
+  def run(s)
+    @fn.call(s)
+  end
+
+  def initialize(&f)
+    @fn = f
+  end
+
+  include Functor
+  def fmap(&f)
+    State.new do |s|
+      a, ns = @fn.call(s)
+      [f.call(a), ns]
+    end
+  end
+
+  include Applicative
+  def self.pure(x)
+    State.new { |s| [x, s] }
+  end
+
+  def apply(os)
+    State.new do |s|
+      f, ns = os.run(s)
+      v, nns = @fn.run(ns)
+      [f.call(v), nns]
+    end
+  end
+
+  include Monad
+  def bind(&f)
+    State.new do |s|
+      v, ns = @fn.call(s)
+      f.call(v).run(ns)
+    end
+  end
+end
+
 if __FILE__ == $0
   p [lambda {|x| x + 1}, lambda {|x| x + 3}].apply([3, 4])
 
@@ -146,4 +185,49 @@ if __FILE__ == $0
       }
     }
   }
+
+  puts Maybe.just(Maybe.just(3)).join
+
+  def push(t)
+    State.new do |x|
+      nx = x.dup
+      nx << t
+      [nil, nx]
+    end
+  end
+  def pop
+    State.new do |x|
+      nx = x.dup
+      v = nx.pop
+      [v, nx]
+    end
+  end
+
+  def joinable_stateful_computation
+    State.new do |s|
+      ss = s.dup
+      ss << 1
+      ss << 2
+      # these are the modifications to the state
+      [push(3), ss]
+      # the value of these modifications (or, this stateful computation) is
+      # another stateful compututaion, namely push(3)
+    end
+  end
+  p joinable_stateful_computation.join.run [1, 2, 3]
+  # by joining this single stateful computation, we combine this S.C. and the
+  # other S.C. from the result of this S.C. together into a new S.C.
+
+  some_stateful_computation = push(3).bind_ { push(2).bind_ { push(5) } }
+  another_stateful_computation = pop.bind do |x|
+    if x > 3
+      push(x + 5).bind { pop }
+    else
+      push(x * 3)
+    end
+  end
+
+  p some_stateful_computation.bind { another_stateful_computation }.run [1, 2, 3]
+
+  p some_stateful_computation.run([1, 2, 3])
 end

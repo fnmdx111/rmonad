@@ -32,6 +32,11 @@ class Array
     self + o
   end
 
+  include Foldable
+  def fold_each(&f)
+    self.each(&f)
+  end
+
   include Functor
   def fmap(&f)
     map(&f)
@@ -46,8 +51,14 @@ class Array
     self.map { |f| x.fmap(&f) }
   end
 
+  include Traversable
+  def traverse(&f)
+    self.map(&f)
+  end
+
   include Monad
   def bind(&f)
     self.map { |e| f.call(e) }.flatten(1)
   end
+
 end
