@@ -19,7 +19,7 @@ the built-in data structures. And you can find some classic monads in action in
 However, I didn't implement the full aspect of monads due to my still limited
 understandings on them.
 
-Pseudo-type checking
+Pseudo-type-checking
 ----
 
 When including certain modules, the module being included will detect if the
